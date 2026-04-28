@@ -1,9 +1,14 @@
 const express = require("express");
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
 const cors = require("cors");
 
 const app = express();
 app.use(cors());
+
+// Optional root test route
+app.get("/", (req, res) => {
+  res.send("API Running ✅");
+});
 
 app.get("/get-highlight", async (req, res) => {
   const { team1, team2, match } = req.query;
@@ -19,7 +24,8 @@ app.get("/get-highlight", async (req, res) => {
 
   try {
     browser = await puppeteer.launch({
-      headless: "new",
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium-browser",
+      headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -30,14 +36,14 @@ app.get("/get-highlight", async (req, res) => {
 
     const page = await browser.newPage();
 
-    // Open listing page
+    // ✅ Open listing page
     await page.goto(listingUrl, { waitUntil: "networkidle2" });
 
     const content = await page.content();
 
-    // Find highlight link
+    // ✅ Find highlight link (both team names + match number)
     const regex = new RegExp(
-      `https:\\/\\/www\\.crichighlightsvidz\\.com\\/2026\\/\\d+\\/.*(${team1.toLowerCase()}|${team2.toLowerCase()}).*${match}.*?highlights\\.html`,
+      `https:\\/\\/www\\.crichighlightsvidz\\.com\\/2026\\/\\d+\\/[^"]*(${team1.toLowerCase()}|${team2.toLowerCase()})[^"]*${match}[^"]*highlights\\.html`,
       "gi"
     );
 
@@ -52,7 +58,7 @@ app.get("/get-highlight", async (req, res) => {
 
     let manifestUrl = null;
 
-    // Capture network requests
+    // ✅ Capture network responses
     page.on("response", (response) => {
       const url = response.url();
       if (url.includes("manifest.prod.boltdns.net/manifest/v1/hls")) {
@@ -60,9 +66,10 @@ app.get("/get-highlight", async (req, res) => {
       }
     });
 
-    // Open highlight page
+    // ✅ Open highlight page
     await page.goto(highlightUrl, { waitUntil: "networkidle2" });
 
+    // Wait for player to load
     await new Promise(resolve => setTimeout(resolve, 8000));
 
     await browser.close();
