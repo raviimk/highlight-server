@@ -24,7 +24,6 @@ app.get("/get-highlight", async (req, res) => {
 
   try {
     browser = await puppeteer.launch({
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium-browser",
       headless: true,
       args: [
         "--no-sandbox",
