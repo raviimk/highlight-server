@@ -16,16 +16,13 @@ app.get("/get-highlight", async (req, res) => {
     return res.status(400).json({ error: "Missing parameters" });
   }
 
-  const listingUrl =
-    "https://www.crichighlightsvidz.com/p/ipl-2026-video-highlights.html";
-
+  const listingUrl = "https://www.crichighlightsvidz.com/p/ipl-2026-video-highlights.html";
   let browser;
 
   try {
+    // ✅ NO HARDCODED PATH - Puppeteer will find it automatically
     browser = await puppeteer.launch({
-      executablePath:
-        "/opt/render/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome",
-      headless: true,
+      headless: true, 
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -35,25 +32,21 @@ app.get("/get-highlight", async (req, res) => {
     });
 
     const page = await browser.newPage();
-
-    await page.goto(listingUrl, { waitUntil: "networkidle2" });
+    await page.goto(listingUrl, { waitUntil: "networkidle2", timeout: 60000 });
 
     const content = await page.content();
-
     const regex = new RegExp(
       `https:\\/\\/www\\.crichighlightsvidz\\.com\\/2026\\/\\d+\\/[^"]*(${team1.toLowerCase()}|${team2.toLowerCase()})[^"]*${match}[^"]*highlights\\.html`,
       "gi"
     );
 
     const matches = content.match(regex);
-
     if (!matches || matches.length === 0) {
       await browser.close();
       return res.json({ error: "Highlight page not found" });
     }
 
     const highlightUrl = matches[0];
-
     let manifestUrl = null;
 
     page.on("response", (response) => {
@@ -63,23 +56,15 @@ app.get("/get-highlight", async (req, res) => {
       }
     });
 
-    await page.goto(highlightUrl, { waitUntil: "networkidle2" });
-
+    await page.goto(highlightUrl, { waitUntil: "networkidle2", timeout: 60000 });
     await new Promise(resolve => setTimeout(resolve, 8000));
-
     await browser.close();
 
     if (!manifestUrl) {
-      return res.json({
-        highlightPage: highlightUrl,
-        error: "Manifest not captured"
-      });
+      return res.json({ highlightPage: highlightUrl, error: "Manifest not captured" });
     }
 
-    return res.json({
-      highlightPage: highlightUrl,
-      manifest: manifestUrl
-    });
+    return res.json({ highlightPage: highlightUrl, manifest: manifestUrl });
 
   } catch (err) {
     if (browser) await browser.close();
@@ -88,7 +73,6 @@ app.get("/get-highlight", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
