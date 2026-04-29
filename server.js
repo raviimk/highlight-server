@@ -20,19 +20,21 @@ app.get("/get-highlight", async (req, res) => {
 
   try {
     browser = await puppeteer.launch({
-      executablePath: "/usr/bin/chromium-browser",
+      executablePath: "/usr/bin/chromium", // ✅ Correct path
       headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu"
+        "--disable-gpu",
+        "--single-process",
+        "--no-zygote"
       ]
     });
 
     const page = await browser.newPage();
 
-    // ✅ Set real browser user agent
+    // ✅ Real browser UA
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     );
@@ -60,14 +62,10 @@ app.get("/get-highlight", async (req, res) => {
       });
     });
 
-    // ✅ Wait until Brightcove manifest appears
-    await page.waitForFunction(() =>
-      performance.getEntriesByType("resource")
-        .some(r => r.name.includes("manifest.prod.boltdns.net")),
-      { timeout: 20000 }
-    );
+    // ✅ Wait few seconds for Brightcove to load
+    await new Promise(resolve => setTimeout(resolve, 8000));
 
-    // ✅ Extract manifest URLs
+    // ✅ Extract manifest
     const manifestUrls = await page.evaluate(() => {
       return performance.getEntriesByType("resource")
         .map(r => r.name)
