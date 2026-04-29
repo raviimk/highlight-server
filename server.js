@@ -72,7 +72,10 @@ app.get("/get-highlight", async (req, res) => {
         const urls = await frame.evaluate(() => {
           return performance.getEntriesByType("resource")
             .map(r => r.name)
-            .filter(u => u.includes("manifest.prod.boltdns.net"));
+            .filter(u => 
+              u.includes("/manifest/v1/hls/") &&
+              u.includes(".m3u8")
+            );
         });
 
         if (urls.length) {
