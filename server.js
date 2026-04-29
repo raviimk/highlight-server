@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 
 app.get("/", (req, res) => {
-  res.send("Brightcove Manifest Extractor Running ✅");
+  res.send("Brightcove Extractor Running ✅");
 });
 
 app.get("/get-highlight", async (req, res) => {
@@ -20,7 +20,7 @@ app.get("/get-highlight", async (req, res) => {
 
   try {
     browser = await puppeteer.launch({
-      executablePath: "/usr/bin/chromium", // ✅ Correct path
+      executablePath: "/usr/bin/chromium",
       headless: true,
       args: [
         "--no-sandbox",
@@ -34,18 +34,16 @@ app.get("/get-highlight", async (req, res) => {
 
     const page = await browser.newPage();
 
-    // ✅ Real browser UA
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     );
 
-    // ✅ Open highlight page
     await page.goto(url, {
       waitUntil: "domcontentloaded",
       timeout: 60000
     });
 
-    // ✅ Smooth scroll to trigger lazy load
+    // ✅ Smooth scroll
     await page.evaluate(async () => {
       await new Promise((resolve) => {
         let totalHeight = 0;
@@ -62,28 +60,42 @@ app.get("/get-highlight", async (req, res) => {
       });
     });
 
-    // ✅ Wait few seconds for Brightcove to load
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    // ✅ Wait for iframe to appear
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
-    // ✅ Extract manifest
-    const manifestUrls = await page.evaluate(() => {
-      return performance.getEntriesByType("resource")
-        .map(r => r.name)
-        .filter(u => u.includes("manifest.prod.boltdns.net"));
-    });
+    let manifestUrl = null;
+
+    const frames = page.frames();
+
+    for (const frame of frames) {
+      try {
+        const urls = await frame.evaluate(() => {
+          return performance.getEntriesByType("resource")
+            .map(r => r.name)
+            .filter(u => u.includes("manifest.prod.boltdns.net"));
+        });
+
+        if (urls.length) {
+          manifestUrl = urls[urls.length - 1];
+          break;
+        }
+      } catch (e) {
+        // ignore cross-origin frame errors
+      }
+    }
 
     await browser.close();
 
-    if (!manifestUrls.length) {
+    if (!manifestUrl) {
       return res.json({
         page: url,
-        error: "Manifest not detected"
+        error: "Manifest not detected (iframe issue)"
       });
     }
 
     return res.json({
       page: url,
-      manifest: manifestUrls[manifestUrls.length - 1]
+      manifest: manifestUrl
     });
 
   } catch (err) {
