@@ -27,15 +27,13 @@ app.get("/get-highlight", async (req, res) => {
 
   try {
     browser = await puppeteer.launch({
-      executablePath:
-        "/opt/render/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome",
       headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu"
-      ]
+      ] 
     });
 
     const page = await browser.newPage();
