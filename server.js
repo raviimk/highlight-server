@@ -1,8 +1,6 @@
 const express = require("express");
 const puppeteer = require("puppeteer-core");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 app.use(cors());
@@ -10,32 +8,6 @@ app.use(cors());
 app.get("/", (req, res) => {
   res.send("CDN Extractor Running ✅");
 });
-
-// ✅ Dynamically find Chrome path
-function getChromePath() {
-  const baseDir = "/opt/render/.cache/puppeteer/chrome";
-  if (!fs.existsSync(baseDir)) {
-    throw new Error("Chrome base directory not found");
-  }
-
-  const versions = fs.readdirSync(baseDir);
-  if (!versions.length) {
-    throw new Error("No Chrome versions found");
-  }
-
-  const chromePath = path.join(
-    baseDir,
-    versions[0],
-    "chrome-linux64",
-    "chrome"
-  );
-
-  if (!fs.existsSync(chromePath)) {
-    throw new Error("Chrome executable not found");
-  }
-
-  return chromePath;
-}
 
 app.get("/get-highlight", async (req, res) => {
   const { team1, team2, match } = req.query;
@@ -58,10 +30,8 @@ app.get("/get-highlight", async (req, res) => {
   let browser;
 
   try {
-    const chromeExecutablePath = getChromePath();
-
     browser = await puppeteer.launch({
-      executablePath: chromeExecutablePath,
+      executablePath: "/usr/bin/chromium",
       headless: true,
       args: [
         "--no-sandbox",
