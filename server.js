@@ -74,7 +74,7 @@ app.get("/get-highlight", async (req, res) => {
             .map(r => r.name)
             .filter(u => 
               u.includes("/manifest/v1/hls/") &&
-              u.includes(".m3u8")
+              u.includes("master.m3u8")
             );
         });
 
