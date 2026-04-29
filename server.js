@@ -32,27 +32,40 @@ app.get("/get-highlight", async (req, res) => {
   try {
     browser = await puppeteer.launch({
       executablePath: "/usr/bin/chromium",
-      headless: true,
+      headless: "new",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu"
+        "--disable-gpu",
+        "--disable-blink-features=AutomationControlled"
       ]
     });
 
     const page = await browser.newPage();
 
+    // ✅ Spoof user agent
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    );
+
+    // ✅ Remove webdriver flag
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => false
+      });
+    });
+
+    // ✅ Open page (avoid networkidle issues)
     await page.goto(hotstarUrl, {
-      waitUntil: "networkidle2",
+      waitUntil: "domcontentloaded",
       timeout: 60000
     });
 
-    await page.waitForFunction(() => {
-      return performance.getEntriesByType("resource")
-        .some(r => r.name.includes("media-1/index.m3u8"));
-    }, { timeout: 60000 });
+    // ✅ Wait 15 sec for ad + stream load
+    await page.waitForTimeout(15000);
 
+    // ✅ Extract CDN media playlist
     const cdnUrls = await page.evaluate(() => {
       return performance.getEntriesByType("resource")
         .map(r => r.name)
@@ -67,24 +80,30 @@ app.get("/get-highlight", async (req, res) => {
     if (!cdnUrls.length) {
       return res.json({
         highlightPage: hotstarUrl,
-        error: "CDN playlist not found"
+        error: "CDN playlist not detected (possible bot detection)"
       });
     }
 
+    const finalUrl = cdnUrls[cdnUrls.length - 1];
+
     return res.json({
       highlightPage: hotstarUrl,
-      manifest: cdnUrls[cdnUrls.length - 1]
+      manifest: finalUrl
     });
 
   } catch (err) {
     if (browser) {
       try { await browser.close(); } catch (e) {}
     }
-    return res.status(500).json({ error: err.message });
+
+    return res.status(500).json({
+      error: err.message
+    });
   }
 });
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
