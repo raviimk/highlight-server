@@ -63,7 +63,7 @@ app.get("/get-highlight", async (req, res) => {
     });
 
     // ✅ Wait 15 sec for ad + stream load
-    await page.waitForTimeout(15000);
+    await new Promise(resolve => setTimeout(resolve, 15000));
 
     // ✅ Extract CDN media playlist
     const cdnUrls = await page.evaluate(() => {
