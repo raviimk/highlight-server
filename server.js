@@ -6,7 +6,7 @@ const app = express();
 app.use(cors());
 
 app.get("/", (req, res) => {
-  res.send("API Running ✅");
+  res.send("CDN Extractor Running ✅");
 });
 
 app.get("/get-highlight", async (req, res) => {
@@ -16,13 +16,20 @@ app.get("/get-highlight", async (req, res) => {
     return res.status(400).json({ error: "Missing parameters" });
   }
 
-  const listingUrl = "https://www.crichighlightsvidz.com/p/ipl-2026-video-highlights.html";
+  // Hotstar Highlight Page Build
+  // Format: /{team1}-vs-{team2}-highlights/{VIDEO_ID}/video/highlights/watch
+  const videoIdBase = 1540066405; // Match 36 base ID
+  const targetVideoId = videoIdBase + ((parseInt(match) - 36) * 3);
+  
+  const hotstarUrl = `https://www.hotstar.com/in/sports/cricket/${team1.toLowerCase()}-vs-${team2.toLowerCase()}-highlights/${targetVideoId}/video/highlights/watch`;
+
   let browser;
 
   try {
-    // ✅ NO HARDCODED PATH - Puppeteer will find it automatically
     browser = await puppeteer.launch({
-      headless: true, 
+      executablePath:
+        "/opt/render/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome",
+      headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -32,39 +39,46 @@ app.get("/get-highlight", async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.goto(listingUrl, { waitUntil: "networkidle2", timeout: 60000 });
 
-    const content = await page.content();
-    const regex = new RegExp(
-      `https:\\/\\/www\\.crichighlightsvidz\\.com\\/2026\\/\\d+\\/[^"]*(${team1.toLowerCase()}|${team2.toLowerCase()})[^"]*${match}[^"]*highlights\\.html`,
-      "gi"
-    );
+    // Open Hotstar page
+    await page.goto(hotstarUrl, { waitUntil: "networkidle0", timeout: 60000 });
+    
+    // Wait for player & stream loading
+    await new Promise(resolve => setTimeout(resolve, 12000));
 
-    const matches = content.match(regex);
-    if (!matches || matches.length === 0) {
-      await browser.close();
-      return res.json({ error: "Highlight page not found" });
-    }
-
-    const highlightUrl = matches[0];
-    let manifestUrl = null;
-
-    page.on("response", (response) => {
-      const url = response.url();
-      if (url.includes("manifest.prod.boltdns.net/manifest/v1/hls")) {
-        manifestUrl = url;
-      }
+    // ✅ EXTRACT CDN URL VIA PERFORMANCE API
+    const cdnUrls = await page.evaluate(() => {
+      return performance.getEntriesByType("resource")
+        .map(r => r.name)
+        .filter(u => u.includes("/videos/cricket/") && 
+                    u.includes("media-1") && 
+                    u.includes(".m3u8"));
     });
 
-    await page.goto(highlightUrl, { waitUntil: "networkidle2", timeout: 60000 });
-    await new Promise(resolve => setTimeout(resolve, 8000));
     await browser.close();
 
-    if (!manifestUrl) {
-      return res.json({ highlightPage: highlightUrl, error: "Manifest not captured" });
+    if (!cdnUrls || cdnUrls.length === 0) {
+      
+      // Fallback: Try direct URL build with known pattern
+      const fallbackUrl = `https://hssportsprepack.akamaized.net/videos/cricket/1271507153/${targetVideoId}/in/hin/v2/avc/1777153941704/hls/plain/media-1/index.m3u8`;
+      
+      return res.json({
+        method: "fallback_pattern",
+        highlightPage: hotstarUrl,
+        manifest: fallbackUrl,
+        note: "Performance API empty, using pattern fallback"
+      });
     }
 
-    return res.json({ highlightPage: highlightUrl, manifest: manifestUrl });
+    // Get last media playlist (usually the actual content)
+    const finalUrl = cdnUrls[cdnUrls.length - 1];
+
+    return res.json({
+      method: "performance_api",
+      highlightPage: hotstarUrl,
+      manifest: finalUrl,
+      allFound: cdnUrls
+    });
 
   } catch (err) {
     if (browser) await browser.close();
